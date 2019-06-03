@@ -1,6 +1,5 @@
 Set-Location $PSScriptRoot
 
-
 function Get-PDFInfo
 {
   <#
@@ -63,6 +62,93 @@ function Get-PDFInfo
   }
 }
  
+ # Get-PDFInfo demo:
+<#
+
+    Get-PDFInfo MyNewPDF.pdf
+    Get-PDFInfo Christian_Imhorst.pdf
+
+#>
+
+function Set-PDFMetadata
+{
+  <#
+      .Synopsis
+      Set or change metadata in your PDF file
+      .DESCRIPTION
+      Set or change metadata in your PDF file with iTextSharp
+      .EXAMPLE
+      Set-PDFMetadata -File Input.pdf -Output Output_neu.pdf -Metadata @{"Author" = "Christian Imhorst"}
+      .EXAMPLE
+      Set-PDFMetadata -File Input.pdf -Output Output_neu.pdf -Metadata @{"Author" = "Christian Imhorst"; "Creator" = "PowerShell"; "Conference" = "PSConfEU2019"; "Hashtag" = "#PSConfEU2019"}
+  #>
+  Param
+  (
+    # Insert filename
+    [String]
+    [Parameter(
+        Mandatory,
+        ValueFromPipeline,
+        ValueFromPipelineByPropertyName,
+        Position=0)
+    ]
+    $File,
+    # Name of the output file    
+    [String]
+    [Parameter(
+        Mandatory,
+        Position=1)
+    ]
+    $Output,
+    
+    # Hashtable with your metadata: @{"Author" = "Christian Imhorst"}
+    [hashtable]
+    [Parameter(
+        Mandatory,
+        Position=2)
+    ]
+    $Metadata
+  )
+
+  Begin
+  {
+    Add-Type -Path $(Join-Path $pwd "itextsharp.dll")
+    $reader  = New-Object iTextSharp.text.pdf.PdfReader -ArgumentList $(Join-Path $pwd $File)
+    $fs = [System.IO.FileStream]::new($(Join-Path $pwd $Output), [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+    $stamper = New-Object iTextSharp.text.pdf.PdfStamper($reader, $fs)  
+  }
+  Process
+  {
+    $info = $reader.Info
+    foreach ($key in $Metadata.Keys)
+    {
+      if ($info.ContainsKey($key))
+      {
+        $info.Remove($key)
+      }
+      $info.Add($key, $Metadata[$key])
+    }
+    
+    $stamper.MoreInfo = $info
+    $stamper.Dispose()
+  }
+  End
+  {
+    $fs.Dispose()
+    $reader.Dispose()
+  }
+}
+
+# Set-PDFMetadata demo:
+<#
+    Set-PDFMetadata -File Christian_Imhorst.pdf -Output Christian_Imhorst_new.pdf -Metadata @{"Author" = "Christian Imhorst"}
+    Get-PDFInfo Christian_Imhorst_new.pdf
+    Invoke-Expression $(Join-Path $pwd "Christian_Imhorst_new.pdf")
+  
+    Set-PDFMetadata -File Christian_Imhorst.pdf -Output Christian_Imhorst_new.pdf -Metadata @{"Author" = "Christian Imhorst"; "Creator" = "PowerShell"; "Conference" = "PSConfEU2019"; "Hashtag" = "#PSConfEU2019"}
+    Get-PDFInfo Christian_Imhorst_new.pdf
+    Invoke-Expression $(Join-Path $pwd "Christian_Imhorst_new.pdf")
+#>
  
 function Export-TextFromPDF
 {
@@ -108,6 +194,11 @@ function Export-TextFromPDF
    
 }
 
+# Export-TextFromPDF demo:
+<#
+    Export-TextFromPDF Christian_Imhorst.pdf
+#>
+
 function Set-WatermarkToPDF
 {
   <#
@@ -117,7 +208,7 @@ function Set-WatermarkToPDF
       You can set a given watermark from an image file to a PDF.
       Output is a new PDF with a watermark.
       .EXAMPLE
-      Set-WatermarkToPDF -File My.pdf -Output My_Copy.pdf -Watermark watermark.png -SetAbsolutePositionXY 0,600 # 100,300
+      Set-WatermarkToPDF -Name My.pdf -Output My_Copy.pdf -Watermark watermark.png -SetAbsolutePositionXY 0,600 # 100,300
 
   #>
   Param
@@ -160,16 +251,15 @@ function Set-WatermarkToPDF
   {
     Add-Type -Path $(Join-Path $pwd "itextsharp.dll")
     $reader  = New-Object iTextSharp.text.pdf.PdfReader -ArgumentList $(Join-Path $pwd $Name)
-  }
-  Process
-  {    
     $memoryStream = New-Object System.IO.MemoryStream
     $pdfStamper = New-Object iTextSharp.text.pdf.PdfStamper($reader, $memoryStream)
 
     $img = [iTextSharp.text.Image]::GetInstance($Watermark)
     $img.SetAbsolutePosition($SetAbsolutePositionXY[0], $SetAbsolutePositionXY[1])
     [iTextSharp.text.pdf.PdfContentByte]$myWaterMark
-
+  }
+  Process
+  {    
     $pageIndex = $reader.NumberOfPages
     
     for ($i = 1; $i -le $pageIndex; $i++) {
@@ -187,3 +277,136 @@ function Set-WatermarkToPDF
     }
   End {}
 }
+
+# Set-WatermarkToPDF demo:
+<#
+    Set-WatermarkToPDF -Name Christian_Imhorst.pdf -Output Christian_Imhorst_Copy.pdf -Watermark watermark.png -SetAbsolutePositionXY 0,600 # 100,300
+    Invoke-Expression $(Join-Path $pwd "Christian_Imhorst_Copy.pdf")
+
+    Set-WatermarkToPDF -Name Christian_Imhorst.pdf -Output Christian_Imhorst_Copy.pdf -Watermark Kopie.png -SetAbsolutePositionXY 100,300
+    Invoke-Expression $(Join-Path $pwd "Christian_Imhorst_Copy.pdf")
+#>
+
+function ConvertFrom-HtmlToPDF
+{
+  <#
+      .Synopsis
+      Convert your HTML page to PDF
+      .DESCRIPTION
+      Convert your HTML page to PDF with iTextSharp
+      .EXAMPLE
+      ConvertFrom-HtmlToPDF -HTML sample.html -Output sample.pdf
+  #>
+    Param
+    (
+        # Insert your HTML
+        [Parameter(Mandatory,
+                   ValueFromPipelineByPropertyName,
+                   ValueFromPipeline,
+                   Position=0)]
+        $HTML,
+
+        # PDF file out
+        [String]
+        [Parameter(Mandatory,
+                   Position=1)]
+        $Output
+    )
+
+    Begin
+    {
+      Add-Type -Path $(Join-Path $pwd "itextsharp.dll")
+      $doc  = New-Object iTextSharp.text.Document
+      $memoryStream = New-Object System.IO.MemoryStream
+      $null = [itextsharp.text.pdf.PdfWriter]::GetInstance($doc, $memoryStream)
+      $example_html = $(Get-Content $(Join-Path $pwd $HTML) | Out-String)
+      
+    }
+    Process
+    {
+      $doc.Open()
+
+      # Use the built-in HTMLWorker to parse the HTML.
+      # Only inline CSS is supported.
+      $htmlWorker = New-Object iTextSharp.text.html.simpleparser.HTMLWorker($doc)
+
+      # HTMLWorker doesn't read a string directly but instead needs a TextReader
+      $sr = new-object System.IO.StringReader($example_html)
+      $htmlWorker.Parse($sr)
+
+      $doc.Close()
+
+      $bytes = $memoryStream.ToArray()
+      [System.IO.File]::WriteAllBytes($(Join-Path $pwd $Output), $bytes)
+    }
+    End {}
+}
+
+# ConvertFrom-HtmlToPDF demo: 
+<#
+    ConvertFrom-HtmlToPDF -HTML sample.html -Output sample.pdf
+    Invoke-Expression $(Join-Path $pwd "sample.pdf")
+#>
+
+function Join-PDFFiles
+{
+  <#
+      .Synopsis
+      Join PDF files to one PDF
+      .DESCRIPTION
+      Join PDF files to one PDF with iTextSharp
+      .EXAMPLE
+      Join-PDFFiles -Filenames $(gci *.pdf) -Output "JoinedPDFs.pdf"
+  #>
+  param
+  (
+    [string[]]
+    [Parameter(Mandatory,
+        ValueFromPipeline,
+        ValueFromPipelineByPropertyName,
+      Position=0)
+    ]
+    $Filenames,
+
+    [String]
+    [Parameter(Mandatory,
+    Position=1)]
+    $Output
+  )
+
+  begin
+  {
+    Add-Type -Path $(Join-Path $pwd "itextsharp.dll")
+    $doc  = New-Object iTextSharp.text.Document
+    $fs = [System.IO.FileStream]::new($(Join-Path $pwd $Output), [System.IO.FileMode]::Create)
+    $writer = New-Object iTextSharp.text.pdf.PdfCopy($doc, $fs)
+    $doc.Open()
+  }
+  process
+  {
+    foreach ($filename in $filenames)
+    {
+      $reader = New-Object iTextSharp.text.pdf.PdfReader -ArgumentList $filename
+      $reader.ConsolidateNamedDestinations()
+  
+      for ($i = 1; $i -le $reader.NumberOfPages; $i++) 
+      {
+        $page = $writer.GetImportedPage($reader, $i)
+        $writer.AddPage($page)
+      }
+      $reader.Close()
+  
+    }
+  }
+  end
+  {
+    $writer.Close()
+    $doc.Close()
+  }
+}
+
+# Join-PDFFiles: 
+<#
+    Join-PDFFiles -Filenames $(gci *.pdf) -Output JoinedPDFs.pdf
+    Invoke-Expression $(Join-Path $pwd "JoinedPDFs.pdf")
+#>
