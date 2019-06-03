@@ -1,7 +1,12 @@
 Set-Location $PSScriptRoot
 cls
-# We'll first run this example and watch the resulting PDF
+<#
+  First things first: Get iTextSharp e.g. from Nuget:
+  https://www.nuget.org/packages/iTextSharp/
+  (Rename file from .nupkg to .zip and unpack the .dll)
+#>
 
+# We'll first run this example and watch the resulting PDF
 # Then we'll have a look under the hood:
 
 function Create-FirstPDF
